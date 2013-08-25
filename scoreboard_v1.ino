@@ -15,13 +15,13 @@
 //#define DEBUG
 
 #ifdef DEBUG
-  #define DEBUG_PRINT(x)     Serial.print (x)
-  #define DEBUG_PRINTDEC(x)     Serial.print (x, DEC)
-  #define DEBUG_PRINTLN(x)  Serial.println (x)
+#define DEBUG_PRINT(x)     Serial.print (x)
+#define DEBUG_PRINTDEC(x)     Serial.print (x, DEC)
+#define DEBUG_PRINTLN(x)  Serial.println (x)
 #else
-  #define DEBUG_PRINT(x)
-  #define DEBUG_PRINTDEC(x)
-  #define DEBUG_PRINTLN(x)
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTDEC(x)
+#define DEBUG_PRINTLN(x)
 #endif  
 
 #define TIME_UP_BUTTON_PIN 5
@@ -85,9 +85,14 @@ void processISR() {
 
   if(pause) {
     if(debounce_time_up()) {
-      current_time +=100;
-      current_time -= current_time % 100;
-      time_updated = TRUE;
+      if(current_time > 100) {
+        current_time +=100;  
+        current_time -= current_time % 100;
+        time_updated = TRUE;
+      } 
+      else {
+        current_time = 100;
+      }
     }
     if(debounce_time_down()) {
       if(current_time < 100) {
@@ -96,7 +101,7 @@ void processISR() {
       } 
       else {
         current_time -= current_time % 100;
-        current_time -= 100;
+        current_time -= 100;  
         time_updated = TRUE;
       }
     }  
@@ -125,7 +130,7 @@ void setup() {
 
   pinMode(PAUSE_BUTTON_PIN, INPUT);
   digitalWrite(PAUSE_BUTTON_PIN, HIGH);
-  
+
   pinMode(PAUSE_BUTTON_LIGHT, OUTPUT);
   digitalWrite(PAUSE_BUTTON_LIGHT, LOW);
 
@@ -168,7 +173,7 @@ void loop() {
     if(pause && digitalRead(PAUSE_BUTTON_PIN) == LOW) {
       DEBUG_PRINTLN("UNPAUSED...");
       digitalWrite(PAUSE_BUTTON_LIGHT, HIGH);
-      last_time_millis = millis() - 1000;
+      last_time_millis = millis(); // // stop double-decrement on unpause // not - 1000;
       pause = 0;
     }
 
@@ -206,7 +211,7 @@ void loop() {
 
 void show_countdown(unsigned int time, char base_pos) {
   dmd.selectFont(fixednums7x15);
-  if(time > 60) {
+  if(time > 60 || time == 0) {
     show_clock(time, 1, base_pos);
   } 
   else {
@@ -649,6 +654,7 @@ char debounce_time_down() {
   }
   return 0;
 }
+
 
 
 
