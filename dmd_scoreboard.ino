@@ -39,6 +39,27 @@
 #define REMOTE_BUTTON_A  A3
 #define REMOTE_BUTTON_C  A2
 
+
+struct button {
+  byte id;
+  bool high;
+  unsigned int state;
+};
+
+struct button buttons[] = {
+  {TIME_UP_BUTTON_PIN, true, 0},
+  {TIME_DOWN_BUTTON_PIN, true, 0},
+  {HOME_UP_BUTTON_PIN, true, 0},
+  {HOME_DOWN_BUTTON_PIN, true, 0},
+  {AWAY_UP_BUTTON_PIN, true, 0},
+  {AWAY_DOWN_BUTTON_PIN, true, 0},
+  {PAUSE_BUTTON_PIN, true, 0},
+  {REMOTE_BUTTON_A, false, 0},
+  {REMOTE_BUTTON_B, false, 0},
+  {REMOTE_BUTTON_C, false, 0},
+  {REMOTE_BUTTON_D, false, 0}
+};
+
 #define DOWN   (-1)
 #define UP     1
 
@@ -52,6 +73,8 @@
 int home_score, away_score;
 
 char time_updated;
+bool home_updated;
+bool away_updated;
 
 #define CLOCK_UPDATE_DELAY_MILLIS  1000
 unsigned int current_time; // in seconds
@@ -65,49 +88,77 @@ char pause = 0;
 #define DISPLAYS_DOWN 1
 SPIDMD dmd(DISPLAYS_ACROSS, DISPLAYS_DOWN);
 
-//#define ISRTIME 1000
-
 void processButtons() {
-  remote_buttons();
 
-  if (debounce_home_up()) {
-    home_score++;
-  }
-  if (debounce_home_down()) {
-    home_score--;
-  }
+  static unsigned long lastMillis = millis();
 
-  if (debounce_away_up()) {
-    away_score++;
+  unsigned long now = millis();
+  if (now - lastMillis < 50) {
+    return; // no need to debounce less than 50ms steps
   }
-  if (debounce_away_down()) {
-    away_score--;
+#ifdef DEBUG
+  if (now - lastMillis > 100) {
+    DEBUG_PRINT("*************************missed cycles: ");
+    DEBUG_PRINTLN((now - lastMillis) / 50);
   }
+#endif
 
-  if (pause) {
-    if (debounce_time_up()) {
-      if (current_time > 100) {
-        current_time += 100;
-        current_time -= current_time % 100;
-        time_updated = TRUE;
-      }
-      else {
-        current_time = 100;
+  lastMillis = now;
+
+  byte qty = sizeof(buttons) / sizeof(button);
+  int i;
+
+  for (i = 0; i < qty; i++) {
+    if (debounce(&buttons[i])) {
+      DEBUG_PRINTLN(buttons[i].id);
+      switch (buttons[i].id) {
+        case HOME_UP_BUTTON_PIN:
+        case REMOTE_BUTTON_A:
+          home_updated = true;
+          home_score++;
+          break;
+        case HOME_DOWN_BUTTON_PIN:
+        case REMOTE_BUTTON_C:
+          home_updated = true;
+          home_score--;
+          break;
+        case AWAY_UP_BUTTON_PIN:
+        case REMOTE_BUTTON_B:
+          away_updated = true;
+          away_score++;
+          break;
+        case AWAY_DOWN_BUTTON_PIN:
+        case REMOTE_BUTTON_D:
+          away_updated = true;
+          away_score--;
+          break;
+        case TIME_UP_BUTTON_PIN:
+          if (pause) {
+            if (current_time > 100) {
+              current_time += 100;
+              current_time -= current_time % 100;
+              time_updated = TRUE;
+            }
+            else {
+              current_time = 100;
+            }
+          }
+          break;
+        case TIME_DOWN_BUTTON_PIN:
+          if (pause) {
+            if (current_time < 100) {
+              current_time = 0;
+              time_updated = TRUE;
+            }
+            else {
+              current_time -= current_time % 100;
+              current_time -= 100;
+              time_updated = TRUE;
+            }
+          }
       }
     }
-    if (debounce_time_down()) {
-      if (current_time < 100) {
-        current_time = 0;
-        time_updated = TRUE;
-      }
-      else {
-        current_time -= current_time % 100;
-        current_time -= 100;
-        time_updated = TRUE;
-      }
-    }
   }
-
 }
 
 
@@ -134,27 +185,30 @@ void setup() {
 
   pinMode(PAUSE_BUTTON_LIGHT, OUTPUT);
   digitalWrite(PAUSE_BUTTON_LIGHT, LOW);
-  
+
   pinMode(REMOTE_BUTTON_A, INPUT);
   digitalWrite(REMOTE_BUTTON_A, LOW);
 
   pinMode(REMOTE_BUTTON_B, INPUT);
   digitalWrite(REMOTE_BUTTON_B, LOW);
- 
+
   pinMode(REMOTE_BUTTON_D, INPUT);
   digitalWrite(REMOTE_BUTTON_C, LOW);
- 
+
   pinMode(REMOTE_BUTTON_D, INPUT);
-  digitalWrite(REMOTE_BUTTON_D, LOW); 
+  digitalWrite(REMOTE_BUTTON_D, LOW);
 
   home_score = 0;
   away_score = 0;
   time_updated = TRUE;
+  home_updated = TRUE;
+  away_updated = TRUE;
 
   last_time_millis = millis();
 
   dmd.clearScreen();
   dmd.selectFont(fixednums7x15);
+  dmd.setBrightness(32);
   dmd.begin();
 
   current_time = 4500;
@@ -172,15 +226,17 @@ void loop() {
   processButtons();
 
   if (last_time_millis + CLOCK_UPDATE_DELAY_MILLIS < millis() && current_time > 0) {
-    if (!pause && digitalRead(PAUSE_BUTTON_PIN) == HIGH) {
+    if (!pause && digitalRead(PAUSE_BUTTON_PIN) == LOW) {
       DEBUG_PRINTLN("PAUSED...");
-      pause = 1;
       digitalWrite(PAUSE_BUTTON_LIGHT, LOW);
+      dmd.setBrightness(32);
+      pause = 1;
     }
-    if (pause && digitalRead(PAUSE_BUTTON_PIN) == LOW) {
+    if (pause && digitalRead(PAUSE_BUTTON_PIN) == HIGH) {
       DEBUG_PRINTLN("UNPAUSED...");
       digitalWrite(PAUSE_BUTTON_LIGHT, HIGH);
       last_time_millis = millis(); // // stop double-decrement on unpause // not - 1000;
+      dmd.setBrightness(255);
       pause = 0;
     }
 
@@ -210,11 +266,18 @@ void loop() {
     away_score = 0;
   }
 
-  show_number(home_score,HOME_START_POS, 1,1);
-  show_number(away_score,AWAY_START_POS,1,1);
+  if (home_updated) {
+    dmd.drawFilledBox(HOME_START_POS, 1, HOME_START_POS + 31, 15, false); // clear the box
+    show_number(home_score, HOME_START_POS, 1, 1);
+    home_updated = false;
+  }
+  if (away_updated) {
+    dmd.drawFilledBox(AWAY_START_POS, 1, AWAY_START_POS + 31, 15, false); // clear the box
+    show_number(away_score, AWAY_START_POS, 1, 1);
+    away_updated = false;
+  }
 
 }
-
 
 void show_countdown(unsigned int time, char base_pos) {
   dmd.selectFont(fixednums7x15);
@@ -222,7 +285,7 @@ void show_countdown(unsigned int time, char base_pos) {
     show_clock(time, CLOCK_START_POS);
   }
   else {
-    show_number(time,CLOCK_START_POS, 1,1);
+    show_number(time, CLOCK_START_POS, 1, 1);
   }
 }
 
@@ -234,14 +297,25 @@ void show_clock(unsigned int time, byte pos) {
   unsigned char ntt, nhh, ntn, nun;
   byte npos;
 
+
   ntt = '0' + ((time % 10000) / 1000);
   nhh = '0' + ((time % 1000) / 100);
   ntn = '0' + ((time % 100)  / 10);
   nun = '0' + (time % 10);
 
   npos = centered_pos(time);
-  String sNumber = String(time);
-  dmd.drawString(pos+npos, 1, sNumber);
+  //dmd.drawFilledBox(pos, 1, pos + 31, 15, false); // clear the box, redraw the character.
+  if (ntt > 0) {
+    dmd.drawChar(pos + npos, 1, ntt);
+    pos += dmd.charWidth(ntt) + 1;
+  }
+  dmd.drawChar(pos + npos, 1, nhh);
+  pos += dmd.charWidth(ntt); // allow for colon
+  dmd.drawChar(pos + npos, -1, ':');
+  pos += 2;
+  dmd.drawChar(pos + npos, 1, ntn);
+  pos += dmd.charWidth(ntt) + 1;
+  dmd.drawChar(pos + npos, 1, nun);
 }
 
 void add_second() {
@@ -302,7 +376,7 @@ void show_number(unsigned int number, byte pos, byte show, byte centered) {
   }
 
   String sNumber = String(number);
-  dmd.drawString(pos+dpos, 1, sNumber);
+  dmd.drawString(pos + dpos, 1, sNumber);
 }
 
 byte centered_pos(unsigned int number) {
@@ -319,86 +393,19 @@ byte centered_pos(unsigned int number) {
 }
 
 
-char debounce_home_up() {
-  static unsigned int state = 0;
-
-  state = (state << 1) | digitalRead(HOME_UP_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("HOME UP");
+char debounce(struct button *b) {
+  byte result = digitalRead(b->id);
+  if (b->high == false) {
+    result = !result;
+  }
+  b->state = (b->state << 1) | digitalRead(b->id) | 0xe000;
+  if (b->state == 0xF000) {
+    DEBUG_PRINT(b->id);
+    DEBUG_PRINTLN("BUTTON PRESSED");
     return 1;
   }
+
   return 0;
-}
-
-char debounce_home_down() {
-  static unsigned int state = 1;
-
-  state = (state << 1) | digitalRead(HOME_DOWN_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("HOME DOWN");
-    return 1;
-  }
-  return 0;
-}
-
-char debounce_away_up() {
-  static unsigned int state = 0;
-
-  state = (state << 1) | digitalRead(AWAY_UP_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("AWAY UP");
-    return 1;
-  }
-  return 0;
-}
-
-char debounce_away_down() {
-  static unsigned int state = 0;
-
-  state = (state << 1) | digitalRead(AWAY_DOWN_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("AWAY DOWN");
-    return 1;
-  }
-  return 0;
-}
-
-char debounce_time_up() {
-  static unsigned int state = 0;
-
-  state = (state << 1) | digitalRead(TIME_UP_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("TIME UP");
-    return 1;
-  }
-  return 0;
-}
-
-char debounce_time_down() {
-  static unsigned int state = 0;
-
-  state = (state << 1) | digitalRead(TIME_DOWN_BUTTON_PIN) | 0xe000;
-  if (state == 0xF000) {
-    DEBUG_PRINTLN("TIME DOWN");
-    return 1;
-  }
-  return 0;
-}
-
-char remote_buttons() {
-  if(digitalRead(REMOTE_BUTTON_A) ) {
-      DEBUG_PRINTLN("REMOTE_BUTTON_A");
-  }
-  if(digitalRead(REMOTE_BUTTON_B) ) {
-      DEBUG_PRINTLN("REMOTE_BUTTON_B");
-  }
-    if(digitalRead(REMOTE_BUTTON_C) ) {
-      DEBUG_PRINTLN("REMOTE_BUTTON_C");
-  }
-    if(digitalRead(REMOTE_BUTTON_D) ) {
-      DEBUG_PRINTLN("REMOTE_BUTTON_D");
-  }
-  return 1;
 }
 
 
