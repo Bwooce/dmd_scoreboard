@@ -408,14 +408,14 @@ char debounce(struct button *b) {
   }
   b->state = ((b->state << 1) | result) | b->mask; // cut off top bits - set them to 1's
 
-#ifdef ADEBUG
+#ifdef DEBUG
   if (b->id == 19 && result) {
     DEBUG_PRINTLN(result);
     DEBUG_PRINT("remote up button debounce buffer: ");
     DEBUG_PRINTLN(b->state);
   }
 #endif
-  if (b->state == 0xFFFE) {
+  if (b->state == 0xFFFE) { // we want a trailing 0 to prevent button repeats. Change to 0xFFFF to permit repeats
     DEBUG_PRINT(b->id);
     DEBUG_PRINTLN("BUTTON PRESSED");
     b->state = 0;
