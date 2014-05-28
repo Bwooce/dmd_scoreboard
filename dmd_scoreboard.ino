@@ -17,9 +17,9 @@
 //#define DEBUG true
 
 #ifdef DEBUG
-#define DEBUG_PRINT(x)     Serial.print (x)
-#define DEBUG_PRINTDEC(x)     Serial.print (x, DEC)
-#define DEBUG_PRINTLN(x)  Serial.println (x)
+#define DEBUG_PRINT(x)      Serial.print (x)
+#define DEBUG_PRINTDEC(x)   Serial.print (x, DEC)
+#define DEBUG_PRINTLN(x)    Serial.println (x)
 #else
 #define DEBUG_PRINT(x)
 #define DEBUG_PRINTDEC(x)
@@ -273,12 +273,12 @@ void loop() {
   }
 
   if (home_updated) {
-    dmd.drawFilledBox(HOME_START_POS, 0, HOME_START_POS + 31, 15, false); // clear the box
+    dmd.drawFilledBox(HOME_START_POS, 0, HOME_START_POS + 31, 15, GRAPHICS_OFF); // clear the box
     show_number(home_score, HOME_START_POS, 1, 1);
     home_updated = false;
   }
   if (away_updated) {
-    dmd.drawFilledBox(AWAY_START_POS, 0, AWAY_START_POS + 31, 15, false); // clear the box
+    dmd.drawFilledBox(AWAY_START_POS, 0, AWAY_START_POS + 31, 15, GRAPHICS_OFF); // clear the box
     show_number(away_score, AWAY_START_POS, 1, 1);
     away_updated = false;
   }
@@ -314,16 +314,16 @@ void show_clock(unsigned int time, byte pos) {
   npos = centered_pos(time);
   //dmd.drawFilledBox(pos, 1, pos + 31, 15, false); // clear the box, redraw the character.
   if (ntt > 0) {
-    dmd.drawChar(pos + npos, 1, ntt, false, fixednums7x15);
+    dmd.drawChar(pos + npos, 1, ntt, GRAPHICS_NORMAL, fixednums7x15);
     pos += dmd.charWidth(ntt) + 1;
   }
-  dmd.drawChar(pos + npos, 1, nhh, false, fixednums7x15);
+  dmd.drawChar(pos + npos, 1, nhh, GRAPHICS_NORMAL, fixednums7x15);
   pos += dmd.charWidth(ntt); // allow for colon
-  dmd.drawChar(pos + npos, -1, ':', false, fixednums7x15);
+  dmd.drawChar(pos + npos, -1, ':', GRAPHICS_OR, fixednums7x15);
   pos += 2;
-  dmd.drawChar(pos + npos, 1, ntn, false, fixednums7x15);
+  dmd.drawChar(pos + npos, 1, ntn, GRAPHICS_NORMAL, fixednums7x15);
   pos += dmd.charWidth(ntt) + 1;
-  dmd.drawChar(pos + npos, 1, nun, false, fixednums7x15);
+  dmd.drawChar(pos + npos, 1, nun, GRAPHICS_NORMAL, fixednums7x15);
 }
 
 void add_second() {
@@ -384,7 +384,7 @@ void show_number(unsigned int number, byte pos, byte show, byte centered) {
   }
 
   String sNumber = String(number);
-  dmd.drawString(pos + dpos, 1, sNumber, false, fixednums8x16);
+  dmd.drawString(pos + dpos, 1, sNumber, GRAPHICS_NORMAL, fixednums8x16);
 }
 
 byte centered_pos(unsigned int number) {
